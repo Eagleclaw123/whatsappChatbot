@@ -34,7 +34,7 @@ async function sendWhatsAppTest() {
               // contenttype: "image/png",
               // mediadata:
               // "https://sample-videos.com/img/Sample-png-image-100kb.png",
-              text: "what about you",
+              text: "hello",
               addresses: [
                 {
                   seq: seqId,

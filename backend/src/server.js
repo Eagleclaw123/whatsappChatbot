@@ -80,37 +80,41 @@ const startServer = async () => {
     });
 
     // WhatsApp Webhook Events (POST)
+    // WhatsApp Webhook Events (POST)
     app.post("/webhook/whatsapp", (req, res) => {
-      const body = req.body;
+      const body = req.body ?? {};
 
       console.log(
         "📨 WhatsApp webhook received:",
         JSON.stringify(body, null, 2),
       );
 
-      // Check if this is a WhatsApp message event
-      if (body.object) {
-        if (
-          body.entry &&
-          body.entry[0].changes &&
-          body.entry[0].changes[0].value.messages
-        ) {
-          const messages = body.entry[0].changes[0].value.messages;
-
-          messages.forEach((message) => {
-            console.log(
-              `📱 Message from ${message.from}: ${message.text?.body || message.type}`,
-            );
-
-            // Add your message processing logic here
-            // For example: save to database, trigger actions, etc.
-          });
-        }
-
-        res.status(200).send("EVENT_RECEIVED");
-      } else {
-        res.sendStatus(404);
+      // Reject empty or invalid payloads safely
+      if (!body || typeof body !== "object" || !body.object) {
+        console.log("❌ Invalid webhook payload");
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid webhook payload",
+        });
       }
+
+      const changes = body.entry?.[0]?.changes?.[0];
+      const value = changes?.value;
+      const messages = value?.messages ?? [];
+
+      if (messages.length > 0) {
+        messages.forEach((message) => {
+          console.log(
+            `📱 Message from ${message.from}: ${message.text?.body || message.type}`,
+          );
+
+          // Add your processing logic here
+        });
+      } else {
+        console.log("ℹ️ Webhook received but no messages array present");
+      }
+
+      return res.status(200).send("EVENT_RECEIVED");
     });
 
     // Get schema info endpoint
