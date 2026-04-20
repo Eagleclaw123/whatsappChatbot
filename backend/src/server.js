@@ -44,65 +44,66 @@ app.get("/webhook/whatsapp", (req, res) => {
 });
 
 // Route-specific RAW parser for webhook debugging
-app.post("/webhook/whatsapp", express.raw({ type: "*/*" }), (req, res) => {
-  try {
-    console.log("========== WHATSAPP WEBHOOK DEBUG START ==========");
-    console.log("Method:", req.method);
-    console.log("URL:", req.originalUrl);
-    console.log("Headers:", JSON.stringify(req.headers, null, 2));
-    console.log("Content-Type:", req.headers["content-type"] || "N/A");
-
-    const rawBody = Buffer.isBuffer(req.body)
-      ? req.body.toString("utf8")
-      : String(req.body || "");
-
-    console.log("Raw Body:", rawBody);
-
-    let body = null;
+app.post(
+  "/webhook/whatsapp",
+  express.urlencoded({ extended: true }),
+  express.json(),
+  (req, res) => {
     try {
-      body = rawBody ? JSON.parse(rawBody) : null;
-    } catch (err) {
-      console.log("Body is not valid JSON");
-    }
+      console.log("========== WHATSAPP WEBHOOK START ==========");
+      console.log("Method:", req.method);
+      console.log("URL:", req.originalUrl);
+      console.log("Headers:", JSON.stringify(req.headers, null, 2));
+      console.log("Content-Type:", req.headers["content-type"] || "N/A");
+      console.log("Parsed Body:", JSON.stringify(req.body, null, 2));
 
-    console.log("Parsed Body:", JSON.stringify(body, null, 2));
+      const body = req.body || {};
 
-    if (!body || typeof body !== "object" || !body.object) {
-      console.log("❌ Invalid webhook payload");
-      console.log("=========== WHATSAPP WEBHOOK DEBUG END ===========");
+      // Handle URL-encoded provider format
+      if (body.from || body.to || body.text || body.Message_ID) {
+        console.log("✅ URL-encoded webhook received");
+        console.log(`From: ${body.from || "N/A"}`);
+        console.log(`To: ${body.to || "N/A"}`);
+        console.log(`Text: ${body.text || "N/A"}`);
+        console.log(`Message ID: ${body.Message_ID || "N/A"}`);
+
+        return res.status(200).send("EVENT_RECEIVED");
+      }
+
+      // Handle native WhatsApp/Meta JSON format too
+      if (body.object) {
+        const changes = body.entry?.[0]?.changes?.[0];
+        const value = changes?.value;
+        const messages = value?.messages ?? [];
+
+        if (messages.length > 0) {
+          messages.forEach((message) => {
+            console.log(
+              `📱 Message from ${message.from}: ${message.text?.body || message.type}`,
+            );
+          });
+        } else {
+          console.log("ℹ️ JSON webhook received but no messages array present");
+        }
+
+        return res.status(200).send("EVENT_RECEIVED");
+      }
+
+      console.log("❌ Unknown webhook payload format");
       return res.status(400).json({
         status: "error",
-        message: "Invalid webhook payload",
+        message: "Unknown webhook payload format",
+      });
+    } catch (error) {
+      console.error("❌ Webhook processing error:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Internal server error",
+        error: error.message,
       });
     }
-
-    const changes = body.entry?.[0]?.changes?.[0];
-    const value = changes?.value;
-    const messages = value?.messages ?? [];
-
-    if (messages.length > 0) {
-      messages.forEach((message) => {
-        console.log(
-          `📱 Message from ${message.from}: ${message.text?.body || message.type}`,
-        );
-
-        // Add your processing logic here
-      });
-    } else {
-      console.log("ℹ️ Webhook received but no messages array present");
-    }
-
-    console.log("=========== WHATSAPP WEBHOOK DEBUG END ===========");
-    return res.status(200).send("EVENT_RECEIVED");
-  } catch (error) {
-    console.error("❌ Webhook processing error:", error);
-    return res.status(500).json({
-      status: "error",
-      message: "Internal server error",
-      error: error.message,
-    });
-  }
-});
+  },
+);
 
 // Global middleware for all other routes
 app.use(express.json());
